@@ -13,8 +13,10 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp\
-        mainwindow.cpp
+        mainwindow.cpp \
+    source/imageplace.cpp
 
-HEADERS  += mainwindow.h
+HEADERS  += mainwindow.h \
+    include/imageplace.h
 
 FORMS    += mainwindow.ui

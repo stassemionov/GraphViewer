@@ -2,9 +2,9 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QPainter>
-#include <QPixmap>
 #include <QResizeEvent>
+
+#include "include/imageplace.h"
 
 namespace Ui {
 class MainWindow;
@@ -18,16 +18,20 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+signals:
+
+public slots:
     void openFile();
+    void editInputData();
+    void showInfo();
 
 protected:
-    void paintEvent(QPaintEvent *pEvent);
-    void resizeEvent(QResizeEvent *pEvent);
+    /*void paintEvent(QPaintEvent *pEvent);
+    void resizeEvent(QResizeEvent *pEvent);*/
 
 private:
     Ui::MainWindow *ui;
-    QPixmap* m_pixmap;
-    QPainter* m_painter;
+    ImagePlace* m_img_place;
 };
 
 #endif // MAINWINDOW_H
