@@ -3,8 +3,9 @@
 
 #include <QMainWindow>
 #include <QResizeEvent>
+#include <QLabel>
 
-#include "include/imageplace.h"
+#include "include/viewer.h"
 
 namespace Ui {
 class MainWindow;
@@ -31,7 +32,8 @@ protected:
 
 private:
     Ui::MainWindow *ui;
-    ImagePlace* m_img_place;
+    Viewer* m_viewer;
+    PointsInfo m_points_info;
 };
 
 #endif // MAINWINDOW_H

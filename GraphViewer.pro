@@ -12,11 +12,13 @@ TARGET = GraphViewer
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
-        mainwindow.cpp \
-    source/imageplace.cpp
+SOURCES +=\
+    source/main.cpp \
+    source/mainwindow.cpp \
+    source/viewer.cpp
 
-HEADERS  += mainwindow.h \
-    include/imageplace.h
+HEADERS  += \
+    include/mainwindow.h \
+    include/viewer.h
 
 FORMS    += mainwindow.ui
