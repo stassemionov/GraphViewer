@@ -3,7 +3,6 @@
 
 #include <QDebug>
 #include <QFileDialog>
-#include <vector>
 
 using std::vector;
 
@@ -20,18 +19,11 @@ MainWindow::MainWindow(QWidget *parent) :
     menu_file->addAction("Открыть...",        this, SLOT(openFile()));
     menu_file->addAction("Выход",             this, SLOT(close()));
     menu_edit->addAction("Входные данные...", this, SLOT(editInputData()));
+    menu_edit->addAction("Шаг сетки...",      this, SLOT(specifyGridStep()));
     menu_info->addAction("О программе",       this, SLOT(showInfo()));
 
-    /*QLabel* l_minX = new QLabel("Min X");
-    QLabel* l_maxX = new QLabel("Max X");
-    QLabel* l_minY = new QLabel("Min Y");
-    QLabel* l_maxY = new QLabel("Max Y");
-    statusBar()->addWidget(l_minX);
-    statusBar()->addWidget(l_maxX);
-    statusBar()->addWidget(l_minY);
-    statusBar()->addWidget(l_maxY);*/
-
-    m_viewer = new Viewer(&m_points_info, this);
+    m_grid_step = -1;
+    m_viewer = new Viewer(&m_points_info, &m_grid_step, this);
     ui->horizontalLayout->addWidget(m_viewer);
 }
 
@@ -40,16 +32,6 @@ MainWindow::~MainWindow()
     delete m_viewer;
     delete ui;
 }
-
-/*void MainWindow::paintEvent(QPaintEvent *pEvent)
-{
-
-}
-
-void MainWindow::resizeEvent(QResizeEvent *pEvent)
-{
-}*/
-
 
 void MainWindow::openFile()
 {
@@ -64,6 +46,8 @@ void MainWindow::openFile()
     {
         return;
     }
+
+    m_points_info.clear();
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -86,6 +70,9 @@ void MainWindow::openFile()
         }
     }
 
+    // By dedfault, step equals 1/20 from minimum side of points rectangle.
+    m_grid_step = qMin(m_points_info.getHDiff(), m_points_info.getHDiff()) / 20;
+
     QApplication::restoreOverrideCursor();
 
     statusBar()->showMessage(
@@ -103,8 +90,62 @@ void MainWindow::editInputData()
 
 }
 
-
 void MainWindow::showInfo()
 {
 
+}
+
+void MainWindow::specifyGridStep()
+{
+    if (m_points_info.getStoredCount() == 0)
+    {
+        statusBar()->showMessage(
+            QString("Данные для отображения не определены!"), 3000);
+        return;
+    }
+
+    StepSpecifingDialog dialog(&m_grid_step);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        if (dialog.getValue() != m_grid_step)
+        {
+            m_grid_step = dialog.getValue();
+            statusBar()->showMessage(
+                QString("Шаг сетки установлен (") +
+                QString::number(m_grid_step) +
+                ")", 3000);
+            this->repaint();
+        }
+    }
+}
+
+
+// *** StepSpecifingDialog class implementation *** //
+
+StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *parent)
+    : QDialog(parent), m_current_step(step_init)
+{
+    this->setWindowTitle("Установка шага сетки");
+    this->setFixedSize(QSize(250, 100));
+    this->setModal(true);
+    QVBoxLayout* layout = new QVBoxLayout;
+    this->setLayout(layout);
+    m_spin_box = new QDoubleSpinBox;
+    m_spin_box->setMinimum(0.0);
+    m_spin_box->setValue(*m_current_step);
+    layout->addWidget(m_spin_box);
+    m_button = new QPushButton("OK");
+    layout->addWidget(m_button);
+    connect(m_button, SIGNAL(clicked(bool)), this, SLOT(accept()));
+}
+
+StepSpecifingDialog::~StepSpecifingDialog()
+{
+    delete m_spin_box;
+    delete m_button;
+}
+
+double StepSpecifingDialog::getValue() const
+{
+    return m_spin_box->value();
 }

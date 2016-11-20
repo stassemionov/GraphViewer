@@ -67,6 +67,17 @@ struct PointsInfo
         this->addPoint(QPointF(x,y));
     }
 
+    void clear()
+    {
+       m_points.clear();
+       m_left  =  std::numeric_limits<qreal>::max();
+       m_right = -std::numeric_limits<qreal>::max();
+       m_lower =  std::numeric_limits<qreal>::max();
+       m_upper = -std::numeric_limits<qreal>::max();
+       m_hdiff =  std::numeric_limits<qreal>::max();
+       m_vdiff =  std::numeric_limits<qreal>::max();
+    }
+
     qreal inline getUpperBound() const
     {
         return m_upper;
@@ -122,7 +133,7 @@ class Viewer : public QWidget
     Q_OBJECT
 
 public:
-    explicit Viewer(const PointsInfo *points_info, QWidget *parent = nullptr);
+    explicit Viewer(const PointsInfo *points_info, const double* step, QWidget *parent = nullptr);
     ~Viewer();
 
     void resetPoints(const PointsInfo &points_info);
@@ -140,6 +151,7 @@ private:
 private:
     QPixmap* m_pixmap = nullptr;
     const PointsInfo* m_points_info = nullptr;
+    const double* m_grid_step = nullptr;
 };
 
 #endif // VIEWER_H

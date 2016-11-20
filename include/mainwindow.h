@@ -4,6 +4,10 @@
 #include <QMainWindow>
 #include <QResizeEvent>
 #include <QLabel>
+#include <QDoubleSpinBox>
+#include <QPushButton>
+#include <QDialog>
+#include <QVBoxLayout>
 
 #include "include/viewer.h"
 
@@ -25,15 +29,31 @@ public slots:
     void openFile();
     void editInputData();
     void showInfo();
-
-protected:
-    /*void paintEvent(QPaintEvent *pEvent);
-    void resizeEvent(QResizeEvent *pEvent);*/
+    void specifyGridStep();
 
 private:
     Ui::MainWindow *ui;
     Viewer* m_viewer;
     PointsInfo m_points_info;
+    double m_grid_step;
+};
+
+class StepSpecifingDialog : public QDialog
+{
+
+    Q_OBJECT
+
+public:
+    explicit StepSpecifingDialog(const double* step_init, QWidget *parent = nullptr);
+
+    ~StepSpecifingDialog();
+
+    double getValue() const;
+
+private:
+    QDoubleSpinBox* m_spin_box = nullptr;
+    QPushButton* m_button = nullptr;
+    const double* m_current_step = nullptr;
 };
 
 #endif // MAINWINDOW_H

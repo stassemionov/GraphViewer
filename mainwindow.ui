@@ -21,6 +21,12 @@
    </layout>
   </widget>
   <widget class="QStatusBar" name="statusBar">
+   <property name="layoutDirection">
+    <enum>Qt::LeftToRight</enum>
+   </property>
+   <property name="autoFillBackground">
+    <bool>false</bool>
+   </property>
    <property name="sizeGripEnabled">
     <bool>true</bool>
    </property>
