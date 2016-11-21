@@ -1,36 +1,79 @@
 #include "include/mainwindow.h"
-#include "ui_mainwindow.h"
+#include "include/dialogs.h"
+#include "include/service.h"
 
-#include <QDebug>
 #include <QFileDialog>
-
-using std::vector;
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QTime>
+#include <QLabel>
+#include <QMenu>
+#include <QMenuBar>
+#include <QLayout>
+#include <QStatusBar>
 
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    QMainWindow(parent)
 {
-    ui->setupUi(this);
+    this->setWindowIcon(QIcon(":/resources/icon.png"));
+    this->setMinimumSize(300, 300);
+    this->setGeometry(QApplication::desktop()->width()  / 4,
+                      QApplication::desktop()->height() / 4,
+                      QApplication::desktop()->width()  / 2,
+                      QApplication::desktop()->height() / 2);
 
     QMenu* menu_file = menuBar()->addMenu("Файл");
     QMenu* menu_edit = menuBar()->addMenu("Правка");
     QMenu* menu_info = menuBar()->addMenu("Справка");
 
-    menu_file->addAction("Открыть...",        this, SLOT(openFile()));
-    menu_file->addAction("Выход",             this, SLOT(close()));
-    menu_edit->addAction("Входные данные...", this, SLOT(editInputData()));
-    menu_edit->addAction("Шаг сетки...",      this, SLOT(specifyGridStep()));
+    menu_file->addAction("Открыть...",        this, SLOT(openFile()),
+                         QKeySequence(Qt::CTRL + Qt::Key_O));
+    menu_file->addAction("Выход",             this, SLOT(close()),
+                         QKeySequence(Qt::CTRL + Qt::Key_Q));
+    menu_edit->addAction("Входные данные...", this, SLOT(editInputData()),
+                         QKeySequence(Qt::CTRL + Qt::Key_I));
+    menu_edit->addAction("Шаг сетки...",      this, SLOT(specifyGridStep()),
+                         QKeySequence(Qt::CTRL + Qt::Key_G));
     menu_info->addAction("О программе",       this, SLOT(showInfo()));
 
-    m_grid_step = -1;
-    m_viewer = new Viewer(&m_points_info, &m_grid_step, this);
-    ui->horizontalLayout->addWidget(m_viewer);
+    m_viewer = new Viewer(&m_points_info, &m_grid_step);
+
+    QFrame* frame = new QFrame;
+    frame->setLayout(new QVBoxLayout);
+    frame->layout()->addWidget(m_viewer);
+    this->setCentralWidget(frame);
+
+    m_text_edit = new QTextEdit;
+    m_text_edit->setMaximumHeight(80);
+    m_text_edit->setReadOnly(true);
+    m_text_edit->append(QTime::currentTime().toString() +
+                        QString(": Приветствие!"));
+    m_text_edit->setFont(menuBar()->font());
+    frame->layout()->addWidget(m_text_edit);
+
+    this->statusBar()->hide();
+
+    this->updateGraph();
+
+
 }
 
 MainWindow::~MainWindow()
 {
     delete m_viewer;
-    delete ui;
+    delete m_text_edit;
+}
+
+void MainWindow::updateGraph()
+{
+    if (m_points_info.getStoredCount() == 1)
+    {
+        m_text_edit->append(
+            QTime::currentTime().toString() +
+            QString(": Вывод отменен: недостаточно точек для масштабирования"));
+    }
+
+    m_viewer->repaint();
 }
 
 void MainWindow::openFile()
@@ -40,67 +83,111 @@ void MainWindow::openFile()
     {
         return;
     }
-
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly))
     {
         return;
     }
 
-    m_points_info.clear();
-
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
     QTextStream stream(&file);
-    while (!stream.atEnd())
-    {
-        QString str1, str2;
-        while (str1.isEmpty() && !stream.atEnd())
-        {
-            stream >> str1;
-        }
-        while (str2.isEmpty() && !stream.atEnd())
-        {
-            stream >> str2;
-        }
-        if (!str1.isEmpty() && !str2.isEmpty())
-        {
-            m_points_info.addPoint(
-                QPointF(str1.toDouble(), str2.toDouble()));
-        }
-    }
+    Points data;
+    bool success = readPoints(stream, data);
+    file.close();
 
-    // By dedfault, step equals 1/20 from minimum side of points rectangle.
-    m_grid_step = qMin(m_points_info.getHDiff(), m_points_info.getHDiff()) / 20;
+    if (!success)
+    {
+        m_text_edit->append(
+            QTime::currentTime().toString() +
+            QString(": Файл имеет ошибочный формат!"));
+        QApplication::restoreOverrideCursor();
+        return;
+    }
 
     QApplication::restoreOverrideCursor();
 
-    statusBar()->showMessage(
-        QString("Данные загружены (") +
+    this->resetData(data);
+    m_text_edit->append(
+                QTime::currentTime().toString() +
+        QString(": Данные загружены (") +
         QString::number(m_points_info.getStoredCount()) +
-        QString(" точек)"), 3000);
+        QString(" точек)"));
 
-    file.close();
-
-    repaint();
+    this->updateGraph();
 }
 
 void MainWindow::editInputData()
 {
+    DataEditionDialog dialog(m_points_info.getPoints());
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        Points data;
+        bool success = dialog.getValue(data);
 
+        if (!success)
+        {
+            m_text_edit->append(
+                QTime::currentTime().toString() +
+                QString(": Данные введены в ошибочном формате!"));
+            return;
+        }
+
+        this->resetData(data);
+        m_text_edit->append(
+            QTime::currentTime().toString() +
+            QString(": Данные приняты (") +
+            QString::number(m_points_info.getStoredCount()) +
+            QString(" точек)"));
+
+        this->updateGraph();
+    }
 }
 
 void MainWindow::showInfo()
 {
+    int w = 600;
+    int h = 300;
+    QWidget* info_widget = new QWidget;
+    info_widget->setWindowTitle("О программе");
+    info_widget->setFixedSize(w, h);
+    info_widget->setGeometry(QApplication::desktop()->width()  / 2 - w/2,
+                   QApplication::desktop()->height() / 2 - h/2,
+                   w, h);
 
+    QVBoxLayout* vlayout = new QVBoxLayout;
+    QHBoxLayout* hlayout = new QHBoxLayout;
+    QHBoxLayout* hlayout2 = new QHBoxLayout;
+    vlayout->addLayout(hlayout);
+    vlayout->addLayout(hlayout2);
+    hlayout2->setAlignment(Qt::AlignRight);
+    hlayout->setAlignment(Qt::AlignLeft);
+    info_widget->setLayout(vlayout);
+    QLabel* l = new QLabel;
+    l->setPixmap(QPixmap(":/resources/icon.png").scaled(h/2, h/2));
+    l->setFixedSize(h/2, h/2);
+    hlayout->addWidget(l);
+    QLabel* textlabel = new QLabel(loadInfo(":/resources/info.txt"));
+  //  textlabel->setPixmap(QPixmap(":/resources/icon.png").scaled(100, 100));
+    textlabel->setLayout(new QHBoxLayout);
+    textlabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    textlabel->setFrameShape(QFrame::NoFrame);
+    textlabel->setWordWrap(true);
+    hlayout->addWidget(textlabel);
+    QPushButton* button = new QPushButton("Закрыть");
+    button->setMaximumWidth(w/6);
+    connect(button, SIGNAL(clicked(bool)), info_widget, SLOT(close()));
+    hlayout2->addWidget(button);
+    info_widget->show();
 }
 
 void MainWindow::specifyGridStep()
 {
     if (m_points_info.getStoredCount() == 0)
     {
-        statusBar()->showMessage(
-            QString("Данные для отображения не определены!"), 3000);
+        m_text_edit->append(
+            QTime::currentTime().toString() +
+            QString(": Чтобы указать шаг сетки, введите данные!"));
         return;
     }
 
@@ -110,42 +197,19 @@ void MainWindow::specifyGridStep()
         if (dialog.getValue() != m_grid_step)
         {
             m_grid_step = dialog.getValue();
-            statusBar()->showMessage(
+            m_text_edit->append(
+                QTime::currentTime().toString() +
                 QString("Шаг сетки установлен (") +
-                QString::number(m_grid_step) +
-                ")", 3000);
-            this->repaint();
+                QString::number(m_grid_step) + ")");
+            this->updateGraph();
         }
     }
 }
 
-
-// *** StepSpecifingDialog class implementation *** //
-
-StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *parent)
-    : QDialog(parent), m_current_step(step_init)
+void MainWindow::resetData(const Points& points)
 {
-    this->setWindowTitle("Установка шага сетки");
-    this->setFixedSize(QSize(250, 100));
-    this->setModal(true);
-    QVBoxLayout* layout = new QVBoxLayout;
-    this->setLayout(layout);
-    m_spin_box = new QDoubleSpinBox;
-    m_spin_box->setMinimum(0.0);
-    m_spin_box->setValue(*m_current_step);
-    layout->addWidget(m_spin_box);
-    m_button = new QPushButton("OK");
-    layout->addWidget(m_button);
-    connect(m_button, SIGNAL(clicked(bool)), this, SLOT(accept()));
-}
-
-StepSpecifingDialog::~StepSpecifingDialog()
-{
-    delete m_spin_box;
-    delete m_button;
-}
-
-double StepSpecifingDialog::getValue() const
-{
-    return m_spin_box->value();
+    m_points_info.setPoints(points);
+    // By default, step equals 1/20 from minimum side of points rectangle.
+    m_grid_step = qMax(m_points_info.getHDiff(),
+                       m_points_info.getVDiff()) / 20;
 }

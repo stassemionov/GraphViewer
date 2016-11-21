@@ -15,10 +15,19 @@ TEMPLATE = app
 SOURCES +=\
     source/main.cpp \
     source/mainwindow.cpp \
-    source/viewer.cpp
+    source/viewer.cpp \
+    source/dialogs.cpp \
+    source/points.cpp \
+    source/service.cpp
 
 HEADERS  += \
     include/mainwindow.h \
-    include/viewer.h
+    include/viewer.h \
+    include/dialogs.h \
+    include/points.h \
+    include/service.h
 
-FORMS    += mainwindow.ui
+FORMS    +=
+
+RESOURCES += \
+    resources.qrc

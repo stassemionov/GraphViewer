@@ -1,19 +1,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QMainWindow>
-#include <QResizeEvent>
-#include <QLabel>
-#include <QDoubleSpinBox>
-#include <QPushButton>
-#include <QDialog>
-#include <QVBoxLayout>
-
 #include "include/viewer.h"
 
-namespace Ui {
-class MainWindow;
-}
+#include <QMainWindow>
+#include <QTextEdit>
 
 class MainWindow : public QMainWindow
 {
@@ -23,6 +14,8 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+    void updateGraph();
+
 signals:
 
 public slots:
@@ -31,29 +24,14 @@ public slots:
     void showInfo();
     void specifyGridStep();
 
+protected:
+    void resetData(const Points& points);
+
 private:
-    Ui::MainWindow *ui;
-    Viewer* m_viewer;
+    Viewer* m_viewer = nullptr;
+    QTextEdit* m_text_edit = nullptr;
     PointsInfo m_points_info;
-    double m_grid_step;
-};
-
-class StepSpecifingDialog : public QDialog
-{
-
-    Q_OBJECT
-
-public:
-    explicit StepSpecifingDialog(const double* step_init, QWidget *parent = nullptr);
-
-    ~StepSpecifingDialog();
-
-    double getValue() const;
-
-private:
-    QDoubleSpinBox* m_spin_box = nullptr;
-    QPushButton* m_button = nullptr;
-    const double* m_current_step = nullptr;
+    double m_grid_step = -1;
 };
 
 #endif // MAINWINDOW_H
