@@ -1,7 +1,7 @@
 #ifndef VIEWER_H
 #define VIEWER_H
 
-#include "include/points.h"
+#include "points.h"
 
 #include <QWidget>
 #include <QPixmap>
@@ -17,12 +17,15 @@ public:
     ~Viewer();
 
     void resetPoints(const PointsInfo &points_info);
+    const QPixmap* getPixmap();
 
 signals:
 
 protected:
     void paintEvent(QPaintEvent *pEvent);
     void resizeEvent(QResizeEvent *pEvent);
+    void enterEvent(QEvent* event);
+    void leaveEvent(QEvent* event);
 
 private:
     inline void resetPixmap(QPixmap* p)

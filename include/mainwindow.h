@@ -1,7 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "include/viewer.h"
+#include "viewer.h"
 
 #include <QMainWindow>
 #include <QTextEdit>
@@ -23,6 +23,8 @@ public slots:
     void editInputData();
     void showInfo();
     void specifyGridStep();
+//    void updatePointingMode();
+    void savePicture();
 
 protected:
     void resetData(const Points& points);
@@ -32,6 +34,7 @@ private:
     QTextEdit* m_text_edit = nullptr;
     PointsInfo m_points_info;
     double m_grid_step = -1;
+//    bool m_pointing_mode = false;
 };
 
 #endif // MAINWINDOW_H

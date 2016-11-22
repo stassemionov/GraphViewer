@@ -1,5 +1,5 @@
-#include "include/dialogs.h"
-#include "include/service.h"
+#include "dialogs.h"
+#include "service.h"
 
 #include <QApplication>
 #include <QDesktopWidget>
@@ -10,7 +10,7 @@
 StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *parent)
     : QDialog(parent), m_current_step(step_init)
 {
-    this->setWindowTitle("Установка шага сетки");
+    this->setWindowTitle(QString::fromLocal8Bit("Установка шага сетки"));
     this->setFixedSize(QSize(250, 100));
     this->setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;
@@ -23,10 +23,11 @@ StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *paren
     layout->addWidget(m_spin_box);
     QHBoxLayout* hlayout = new QHBoxLayout;
     layout->addLayout(hlayout);
-    m_button = new QPushButton("OK");
+    m_button = new QPushButton(QString::fromLocal8Bit("Установить"));
     hlayout->addWidget(m_button);
     connect(m_button, SIGNAL(clicked(bool)), this, SLOT(accept()));
-    QPushButton* cancel_button = new QPushButton("Отмена");
+    QPushButton* cancel_button =
+            new QPushButton(QString::fromLocal8Bit("Отмена"));
     hlayout->addWidget(cancel_button);
     connect(cancel_button, SIGNAL(clicked(bool)), this, SLOT(reject()));
 }
@@ -49,7 +50,7 @@ DataEditionDialog::DataEditionDialog(const Points& init_points,
                                      QWidget *parent)
     : QDialog(parent)
 {
-    this->setWindowTitle("Редактор входных данных");
+    this->setWindowTitle(QString::fromLocal8Bit("Редактор входных данных"));
     this->setMinimumSize(QSize(300, 200));
     this->setMaximumSize(QSize(300, QApplication::desktop()->height()));
     this->setModal(true);
@@ -63,10 +64,11 @@ DataEditionDialog::DataEditionDialog(const Points& init_points,
     layout->addWidget(m_text_edit);
     QHBoxLayout* hlayout = new QHBoxLayout;
     layout->addLayout(hlayout);
-    m_button = new QPushButton("Установить");
+    m_button = new QPushButton(QString::fromLocal8Bit("Установить"));
     hlayout->addWidget(m_button);
     connect(m_button, SIGNAL(clicked(bool)), this, SLOT(accept()));
-    QPushButton* cancel_button = new QPushButton("Отмена");
+    QPushButton* cancel_button =
+            new QPushButton(QString::fromLocal8Bit("Отмена"));
     hlayout->addWidget(cancel_button);
     connect(cancel_button, SIGNAL(clicked(bool)), this, SLOT(reject()));
 }

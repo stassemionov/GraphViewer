@@ -1,13 +1,17 @@
-#include "include/viewer.h"
+#include "viewer.h"
 
 #include <QPainter>
+#include <QApplication>
+#include <QDebug>
 
 Viewer::Viewer(const PointsInfo *points_info, const double *step, QWidget *parent)
     : QWidget(parent),
       m_pixmap(new QPixmap(this->size())),
       m_points_info(points_info),
       m_grid_step(step)
-{}
+{
+    this->setMouseTracking(true);
+}
 
 Viewer::~Viewer()
 {
@@ -18,6 +22,11 @@ void Viewer::resetPoints(const PointsInfo& points_info)
 {
     m_points_info = &points_info;
     repaint();
+}
+
+const QPixmap* Viewer::getPixmap()
+{
+    return m_pixmap;
 }
 
 void Viewer::formPixmap()
@@ -169,4 +178,26 @@ void Viewer::paintEvent(QPaintEvent *pEvent)
 void Viewer::resizeEvent(QResizeEvent *pEvent)
 {
     this->resetPixmap(new QPixmap(this->size()));
+}
+
+void Viewer::enterEvent(QEvent* event)
+{
+    if (event->type() == QEvent::Enter)
+    {
+        event->accept();
+        QApplication::setOverrideCursor(Qt::PointingHandCursor);
+     //   qDebug() << pEvent->x() << pEvent->y();
+    }
+    QWidget::enterEvent(event);
+}
+
+void Viewer::leaveEvent(QEvent* event)
+{
+    if (event->type() == QEvent::Leave)
+    {
+        event->accept();
+   //     qDebug() << "Leave";
+        QApplication::restoreOverrideCursor();
+    }
+    QWidget::leaveEvent(event);
 }

@@ -1,7 +1,7 @@
 #ifndef SERVICE_H
 #define SERVICE_H
 
-#include "include/points.h"
+#include "points.h"
 #include "QTextStream"
 
 bool readPoints(QTextStream& stream, Points& points);

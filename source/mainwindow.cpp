@@ -1,6 +1,6 @@
-#include "include/mainwindow.h"
-#include "include/dialogs.h"
-#include "include/service.h"
+#include "mainwindow.h"
+#include "dialogs.h"
+#include "service.h"
 
 #include <QFileDialog>
 #include <QApplication>
@@ -11,6 +11,7 @@
 #include <QMenuBar>
 #include <QLayout>
 #include <QStatusBar>
+#include <QString>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
@@ -22,19 +23,31 @@ MainWindow::MainWindow(QWidget *parent) :
                       QApplication::desktop()->width()  / 2,
                       QApplication::desktop()->height() / 2);
 
-    QMenu* menu_file = menuBar()->addMenu("Файл");
-    QMenu* menu_edit = menuBar()->addMenu("Правка");
-    QMenu* menu_info = menuBar()->addMenu("Справка");
+    QMenu* menu_file = menuBar()->addMenu(QString::fromLocal8Bit("Файл"));
+    QMenu* menu_edit = menuBar()->addMenu(QString::fromLocal8Bit("Правка"));
+//    QMenu* menu_tool = menuBar()->addMenu(QString::fromLocal8Bit("Инструменты"));
+    QMenu* menu_info = menuBar()->addMenu(QString::fromLocal8Bit("Справка"));
 
-    menu_file->addAction("Открыть...",        this, SLOT(openFile()),
+    menu_file->addAction(QString::fromLocal8Bit("Открыть..."),
+                         this, SLOT(openFile()),
                          QKeySequence(Qt::CTRL + Qt::Key_O));
-    menu_file->addAction("Выход",             this, SLOT(close()),
+    menu_file->addAction(QString::fromLocal8Bit("Сохранить..."),
+                         this, SLOT(savePicture()),
+                         QKeySequence(Qt::CTRL + Qt::Key_S));
+    menu_file->addAction(QString::fromLocal8Bit("Выход"),
+                         this, SLOT(close()),
                          QKeySequence(Qt::CTRL + Qt::Key_Q));
-    menu_edit->addAction("Входные данные...", this, SLOT(editInputData()),
+    menu_edit->addAction(QString::fromLocal8Bit("Входные данные..."),
+                         this, SLOT(editInputData()),
                          QKeySequence(Qt::CTRL + Qt::Key_I));
-    menu_edit->addAction("Шаг сетки...",      this, SLOT(specifyGridStep()),
+    menu_edit->addAction(QString::fromLocal8Bit("Шаг сетки..."),
+                         this, SLOT(specifyGridStep()),
                          QKeySequence(Qt::CTRL + Qt::Key_G));
-    menu_info->addAction("О программе",       this, SLOT(showInfo()));
+    menu_info->addAction(QString::fromLocal8Bit("О программе"),
+                         this, SLOT(showInfo()));
+    //menu_tool->addAction(QString::fromLocal8Bit("Указать новую точку"),
+    //                     this, SLOT(updatePointingMode()),
+    //                     QKeySequence(Qt::CTRL + Qt::Key_N));
 
     m_viewer = new Viewer(&m_points_info, &m_grid_step);
 
@@ -47,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent) :
     m_text_edit->setMaximumHeight(80);
     m_text_edit->setReadOnly(true);
     m_text_edit->append(QTime::currentTime().toString() +
-                        QString(": Приветствие!"));
+                        QString::fromLocal8Bit(": Приветствие!"));
     m_text_edit->setFont(menuBar()->font());
     frame->layout()->addWidget(m_text_edit);
 
@@ -70,7 +83,7 @@ void MainWindow::updateGraph()
     {
         m_text_edit->append(
             QTime::currentTime().toString() +
-            QString(": Вывод отменен: недостаточно точек для масштабирования"));
+            QString::fromLocal8Bit(": Вывод отменен: недостаточно точек для масштабирования"));
     }
 
     m_viewer->repaint();
@@ -100,7 +113,7 @@ void MainWindow::openFile()
     {
         m_text_edit->append(
             QTime::currentTime().toString() +
-            QString(": Файл имеет ошибочный формат!"));
+            QString::fromLocal8Bit(": Файл имеет ошибочный формат!"));
         QApplication::restoreOverrideCursor();
         return;
     }
@@ -109,10 +122,9 @@ void MainWindow::openFile()
 
     this->resetData(data);
     m_text_edit->append(
-                QTime::currentTime().toString() +
-        QString(": Данные загружены (") +
-        QString::number(m_points_info.getStoredCount()) +
-        QString(" точек)"));
+        QString::fromLocal8Bit("%1: Данные загружены (%2 точек)").
+                arg(QTime::currentTime().toString()).
+                arg(m_points_info.getStoredCount()));
 
     this->updateGraph();
 }
@@ -129,16 +141,16 @@ void MainWindow::editInputData()
         {
             m_text_edit->append(
                 QTime::currentTime().toString() +
-                QString(": Данные введены в ошибочном формате!"));
+                QString::fromLocal8Bit(": Данные введены в ошибочном формате!"));
             return;
         }
 
         this->resetData(data);
+
         m_text_edit->append(
-            QTime::currentTime().toString() +
-            QString(": Данные приняты (") +
-            QString::number(m_points_info.getStoredCount()) +
-            QString(" точек)"));
+            QString::fromLocal8Bit("%1: Данные загружены (%2 точек)").
+                    arg(QTime::currentTime().toString()).
+                    arg(m_points_info.getStoredCount()));
 
         this->updateGraph();
     }
@@ -149,7 +161,7 @@ void MainWindow::showInfo()
     int w = 600;
     int h = 300;
     QWidget* info_widget = new QWidget;
-    info_widget->setWindowTitle("О программе");
+    info_widget->setWindowTitle(QString::fromLocal8Bit("О программе"));
     info_widget->setFixedSize(w, h);
     info_widget->setGeometry(QApplication::desktop()->width()  / 2 - w/2,
                    QApplication::desktop()->height() / 2 - h/2,
@@ -168,13 +180,12 @@ void MainWindow::showInfo()
     l->setFixedSize(h/2, h/2);
     hlayout->addWidget(l);
     QLabel* textlabel = new QLabel(loadInfo(":/resources/info.txt"));
-  //  textlabel->setPixmap(QPixmap(":/resources/icon.png").scaled(100, 100));
     textlabel->setLayout(new QHBoxLayout);
     textlabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     textlabel->setFrameShape(QFrame::NoFrame);
     textlabel->setWordWrap(true);
     hlayout->addWidget(textlabel);
-    QPushButton* button = new QPushButton("Закрыть");
+    QPushButton* button = new QPushButton(QString::fromLocal8Bit("Закрыть"));
     button->setMaximumWidth(w/6);
     connect(button, SIGNAL(clicked(bool)), info_widget, SLOT(close()));
     hlayout2->addWidget(button);
@@ -187,7 +198,7 @@ void MainWindow::specifyGridStep()
     {
         m_text_edit->append(
             QTime::currentTime().toString() +
-            QString(": Чтобы указать шаг сетки, введите данные!"));
+            QString::fromLocal8Bit(": Чтобы указать шаг сетки, введите данные!"));
         return;
     }
 
@@ -198,9 +209,9 @@ void MainWindow::specifyGridStep()
         {
             m_grid_step = dialog.getValue();
             m_text_edit->append(
-                QTime::currentTime().toString() +
-                QString("Шаг сетки установлен (") +
-                QString::number(m_grid_step) + ")");
+                QString::fromLocal8Bit("%1: Шаг сетки установлен (%2)").
+                        arg(QTime::currentTime().toString()).
+                        arg(m_grid_step));
             this->updateGraph();
         }
     }
@@ -212,4 +223,29 @@ void MainWindow::resetData(const Points& points)
     // By default, step equals 1/20 from minimum side of points rectangle.
     m_grid_step = qMax(m_points_info.getHDiff(),
                        m_points_info.getVDiff()) / 20;
+}
+
+void MainWindow::savePicture()
+{
+    if (m_points_info.getStoredCount() < 2)
+    {
+        m_text_edit->append(
+            QString::fromLocal8Bit("%1: Изображение отсутствует").
+                    arg(QTime::currentTime().toString()));
+    }
+    else
+    {
+        QString fileName = QFileDialog::getSaveFileName(this,
+                                                        QString::fromLocal8Bit("Сохранить как"),
+                                                        QString(), QString("Images (*.png *.jpg)"));
+        if (fileName.isEmpty())
+        {
+            return;
+        }
+        m_viewer->getPixmap()->save(fileName, "JPEG");
+        m_text_edit->append(
+            QString::fromLocal8Bit("%1: Изображение сохранено по адресу: %2").
+                    arg(QTime::currentTime().toString()).
+                    arg(fileName));
+    }
 }

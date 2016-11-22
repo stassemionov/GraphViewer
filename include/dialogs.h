@@ -1,7 +1,7 @@
 #ifndef DIALOGS_H
 #define DIALOGS_H
 
-#include "include/points.h"
+#include "points.h"
 
 #include <QDoubleSpinBox>
 #include <QPushButton>
