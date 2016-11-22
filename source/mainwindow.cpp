@@ -66,6 +66,17 @@ MainWindow::MainWindow(QWidget *parent) :
 
     this->statusBar()->hide();
 
+    QSettings settings("stu003", "example-10");
+    restoreGeometry(
+    settings.value("geometry").toByteArray());
+    m_listRecentFiles =
+    settings.value("recentFiles").toStringList();
+    updateRecentFileActions();
+    const bool cbShowFileTools =
+    settings.value("showFileTools", true).toBool();
+    m_pActionViewFile->setChecked(cbShowFileTools);
+    pToolBarFile->setVisible(cbShowFileTools);
+
     this->updateGraph();
 
 
@@ -235,9 +246,10 @@ void MainWindow::savePicture()
     }
     else
     {
-        QString fileName = QFileDialog::getSaveFileName(this,
-                                                        QString::fromLocal8Bit("Сохранить как"),
-                                                        QString(), QString("Images (*.png *.jpg)"));
+        QString fileName = QFileDialog::getSaveFileName(
+                    this,
+                    QString::fromLocal8Bit("Сохранить как"),
+                    QString(), QString("Images (*.png *.jpg)"));
         if (fileName.isEmpty())
         {
             return;
@@ -248,4 +260,16 @@ void MainWindow::savePicture()
                     arg(QTime::currentTime().toString()).
                     arg(fileName));
     }
+}
+
+void MainWindow::closeEvent(QCloseEvent *pEvent)
+{
+    pEvent->accept();
+    // ignore()
+    //
+    QSettings settings("stu003", "example-10");
+    settings.setValue("geometry", saveGeometry());
+    settings.setValue("recentFiles", m_listRecentFiles);
+    settings.setValue(
+    "showFileTools", m_pActionViewFile->isChecked());
 }

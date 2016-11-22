@@ -28,6 +28,7 @@ public slots:
 
 protected:
     void resetData(const Points& points);
+    void closeEvent(QCloseEvent *pEvent);
 
 private:
     Viewer* m_viewer = nullptr;

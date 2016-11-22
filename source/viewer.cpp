@@ -44,7 +44,7 @@ void Viewer::formPixmap()
     const int h = this->height();
     const int min_size = qMin(w, h);
     // Indent from bounds of widget.
-    const int dx = 30;
+    const int dx = 35;
     // Sizes of zone for points drawing.
     const int w_work = w - 2 * dx;
     const int h_work = h - 2 * dx;
