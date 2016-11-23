@@ -58,20 +58,27 @@ MainWindow::MainWindow(QWidget *parent) :
     menu_edit->addAction(QString::fromLocal8Bit("Шаг сетки..."),
                          this, SLOT(specifyGridStep()),
                          QKeySequence(Qt::CTRL + Qt::Key_G));
+    menu_edit->addAction(QString::fromLocal8Bit("Очистить график"),
+                         this, SLOT(clearData()));
     menu_info->addAction(QString::fromLocal8Bit("О программе"),
                          this, SLOT(showInfo()));
     //menu_tool->addAction(QString::fromLocal8Bit("Указать новую точку"),
     //                     this, SLOT(updatePointingMode()),
     //                     QKeySequence(Qt::CTRL + Qt::Key_N));
 
-    m_recent_files_menu->actions().reserve(m_max_recent_count);
+    m_recent_files_menu->actions().reserve(m_max_recent_count + 2);
     for (int i = 0; i < m_max_recent_count; ++i)
     {
         QAction* action = new QAction(m_recent_files_menu);
-        action->setVisible(false);
         connect(action, SIGNAL(triggered()), this, SLOT(openRecentFile()));
         m_recent_files_menu->addAction(action);
     }
+    QAction* clear_action = new QAction(
+                QString::fromLocal8Bit("Очистить список"),
+                m_recent_files_menu);
+    connect(clear_action, SIGNAL(triggered()), this, SLOT(clearRecentList()));
+    m_recent_files_menu->addSeparator();
+    m_recent_files_menu->addAction(clear_action);
 
     this->updateRecentList();
 
@@ -90,6 +97,14 @@ MainWindow::MainWindow(QWidget *parent) :
     m_text_edit->setFont(menuBar()->font());
     frame->layout()->addWidget(m_text_edit);
 
+    m_context_menu = new QMenu(this);
+    QAction* add_point_action = new QAction(
+                QString::fromLocal8Bit("Установить точку"),
+                m_context_menu);
+    m_context_menu->addAction(add_point_action);
+    connect(add_point_action, SIGNAL(triggered()),
+            this,             SLOT(insertPoint()));
+
     this->statusBar()->hide();
 
     this->updateGraph();
@@ -99,6 +114,7 @@ MainWindow::~MainWindow()
 {
     delete m_viewer;
     delete m_text_edit;
+    delete m_recent_files_menu;
 }
 
 void MainWindow::updateRecentList()
@@ -118,7 +134,7 @@ void MainWindow::updateRecentList()
     }
 
     QList<QAction*> actions = m_recent_files_menu->actions();
-    for (int i = 0; i < actions.size(); ++ i)
+    for (int i = 0; i < actions.size() - 2; ++i)
     {
         if (i < m_recent_files.size())
         {
@@ -130,6 +146,8 @@ void MainWindow::updateRecentList()
             actions[i]->setVisible(false);
         }
     }
+
+    actions.back()->setVisible(!m_recent_files.empty());
 }
 
 void MainWindow::updateGraph()
@@ -198,6 +216,13 @@ void MainWindow::openFile(const QString& fileName)
                 arg(m_points_info.getStoredCount()));
 
     this->updateGraph();
+}
+
+void MainWindow::insertPoint()
+{
+    QWidget* n = new QWidget;
+    n->setGeometry(500, 500, 500, 500);
+    n->show();
 }
 
 void MainWindow::editInputData()
@@ -327,6 +352,18 @@ void MainWindow::savePicture()
     }
 }
 
+void MainWindow::clearRecentList()
+{
+    m_recent_files.clear();
+    this->updateRecentList();
+}
+
+void MainWindow::clearData()
+{
+    m_points_info.clear();
+    this->updateGraph();
+}
+
 void MainWindow::closeEvent(QCloseEvent *pEvent)
 {
     pEvent->accept();
@@ -334,4 +371,9 @@ void MainWindow::closeEvent(QCloseEvent *pEvent)
     settings.setValue("geometry", saveGeometry());
     settings.setValue("points", QVariant::fromValue(m_points_info.getPoints()));
     settings.setValue("recent", m_recent_files);
+}
+
+void MainWindow::contextMenuEvent(QContextMenuEvent* event)
+{
+    m_context_menu->exec(event->globalPos());
 }

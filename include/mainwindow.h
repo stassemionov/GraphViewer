@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 #include <QTextEdit>
+#include <QContextMenuEvent>
 
 class MainWindow : public QMainWindow
 {
@@ -26,17 +27,22 @@ public slots:
     void specifyGridStep();
 //    void updatePointingMode();
     void savePicture();
+    void clearRecentList();
+    void clearData();
+    void insertPoint();
 
 protected:
     void openFile(const QString& fileName);
     void resetData(const Points& points);
     void closeEvent(QCloseEvent *pEvent);
+    void contextMenuEvent(QContextMenuEvent* event);
     void updateRecentList();
 
 private:
     Viewer* m_viewer = nullptr;
     QTextEdit* m_text_edit = nullptr;
     QMenu* m_recent_files_menu = nullptr;
+    QMenu* m_context_menu = nullptr;
     PointsInfo m_points_info;
     double m_grid_step = -1;
     QStringList m_recent_files;

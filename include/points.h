@@ -6,7 +6,7 @@
 #include <QPointF>
 
 typedef QList<QPointF> Points;
-Q_DECLARE_METATYPE(QList<QPointF>);
+Q_DECLARE_METATYPE(QList<QPointF>)
 
 struct PointsInfo
 {
