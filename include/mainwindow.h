@@ -19,7 +19,8 @@ public:
 signals:
 
 public slots:
-    void openFile();
+    void openRecentFile();
+    void openNewFile();
     void editInputData();
     void showInfo();
     void specifyGridStep();
@@ -27,14 +28,19 @@ public slots:
     void savePicture();
 
 protected:
+    void openFile(const QString& fileName);
     void resetData(const Points& points);
     void closeEvent(QCloseEvent *pEvent);
+    void updateRecentList();
 
 private:
     Viewer* m_viewer = nullptr;
     QTextEdit* m_text_edit = nullptr;
+    QMenu* m_recent_files_menu = nullptr;
     PointsInfo m_points_info;
     double m_grid_step = -1;
+    QStringList m_recent_files;
+    int m_max_recent_count = 10;
 //    bool m_pointing_mode = false;
 };
 

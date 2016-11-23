@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2.0)
+cmake_minimum_required(VERSION 2.8)
 
 project(GraphViewer)
 
@@ -18,7 +18,7 @@ qt5_wrap_ui( 	  UIC_WRAPPERS ${UI_FILES})
 qt5_add_resources(QRC_WRAPPERS ${RESOURCE_FILES}
 				  OPTIONS -no-compress)
 
-add_compile_options(-Wall -O2)
+add_compile_options(-std=c++11 -Wall -O2)
 
 add_executable(GraphViewer
 		 	   	${SOURCE_FILES}
@@ -44,4 +44,3 @@ include(DeployQt4)
 install_qt4_executable(
 		"GraphViewer${CMAKE_EXECUTABLE_SUFFIX}"
 		"" "" "${QT_LIBRARY_DIR}")
-

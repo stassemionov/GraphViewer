@@ -11,17 +11,30 @@
 #include <QMenuBar>
 #include <QLayout>
 #include <QStatusBar>
-#include <QString>
+#include <QSettings>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
+    qRegisterMetaTypeStreamOperators<QList<QPointF> >("QList<QPointF>");
+
     this->setWindowIcon(QIcon(":/resources/icon.png"));
     this->setMinimumSize(300, 300);
-    this->setGeometry(QApplication::desktop()->width()  / 4,
-                      QApplication::desktop()->height() / 4,
-                      QApplication::desktop()->width()  / 2,
-                      QApplication::desktop()->height() / 2);
+
+    QSettings settings(QCoreApplication::organizationName(), "GraphViewer");
+    if (settings.contains("geometry"))
+    {
+        restoreGeometry(settings.value("geometry").toByteArray());
+    }
+    else
+    {
+        this->setGeometry(QApplication::desktop()->width()  / 4,
+                          QApplication::desktop()->height() / 4,
+                          QApplication::desktop()->width()  / 2,
+                          QApplication::desktop()->height() / 2);
+    }
+    this->resetData(settings.value("points").value<Points>());
+    m_recent_files = settings.value("recent").toStringList();
 
     QMenu* menu_file = menuBar()->addMenu(QString::fromLocal8Bit("Файл"));
     QMenu* menu_edit = menuBar()->addMenu(QString::fromLocal8Bit("Правка"));
@@ -29,8 +42,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QMenu* menu_info = menuBar()->addMenu(QString::fromLocal8Bit("Справка"));
 
     menu_file->addAction(QString::fromLocal8Bit("Открыть..."),
-                         this, SLOT(openFile()),
+                         this, SLOT(openNewFile()),
                          QKeySequence(Qt::CTRL + Qt::Key_O));
+    m_recent_files_menu = menu_file->addMenu(
+                QString::fromLocal8Bit("Недавние..."));
     menu_file->addAction(QString::fromLocal8Bit("Сохранить..."),
                          this, SLOT(savePicture()),
                          QKeySequence(Qt::CTRL + Qt::Key_S));
@@ -49,6 +64,17 @@ MainWindow::MainWindow(QWidget *parent) :
     //                     this, SLOT(updatePointingMode()),
     //                     QKeySequence(Qt::CTRL + Qt::Key_N));
 
+    m_recent_files_menu->actions().reserve(m_max_recent_count);
+    for (int i = 0; i < m_max_recent_count; ++i)
+    {
+        QAction* action = new QAction(m_recent_files_menu);
+        action->setVisible(false);
+        connect(action, SIGNAL(triggered()), this, SLOT(openRecentFile()));
+        m_recent_files_menu->addAction(action);
+    }
+
+    this->updateRecentList();
+
     m_viewer = new Viewer(&m_points_info, &m_grid_step);
 
     QFrame* frame = new QFrame;
@@ -66,26 +92,44 @@ MainWindow::MainWindow(QWidget *parent) :
 
     this->statusBar()->hide();
 
-    QSettings settings("stu003", "example-10");
-    restoreGeometry(
-    settings.value("geometry").toByteArray());
-    m_listRecentFiles =
-    settings.value("recentFiles").toStringList();
-    updateRecentFileActions();
-    const bool cbShowFileTools =
-    settings.value("showFileTools", true).toBool();
-    m_pActionViewFile->setChecked(cbShowFileTools);
-    pToolBarFile->setVisible(cbShowFileTools);
-
     this->updateGraph();
-
-
 }
 
 MainWindow::~MainWindow()
 {
     delete m_viewer;
     delete m_text_edit;
+}
+
+void MainWindow::updateRecentList()
+{
+    QMutableStringListIterator it(m_recent_files);
+    while (it.hasNext())
+    {
+        if (!QFile::exists(it.next()))
+        {
+            it.remove();
+        }
+    }
+
+    while (m_recent_files.size() > m_max_recent_count)
+    {
+        m_recent_files.pop_back();
+    }
+
+    QList<QAction*> actions = m_recent_files_menu->actions();
+    for (int i = 0; i < actions.size(); ++ i)
+    {
+        if (i < m_recent_files.size())
+        {
+            actions[i]->setText(m_recent_files[i]);
+            actions[i]->setVisible(true);
+        }
+        else
+        {
+            actions[i]->setVisible(false);
+        }
+    }
 }
 
 void MainWindow::updateGraph()
@@ -100,9 +144,25 @@ void MainWindow::updateGraph()
     m_viewer->repaint();
 }
 
-void MainWindow::openFile()
+void MainWindow::openNewFile()
 {
-    QString fileName = QFileDialog::getOpenFileName(this);
+    QString name = QFileDialog::getOpenFileName(this);
+    openFile(name);
+    if (!m_recent_files.contains(name))
+    {
+        m_recent_files.push_front(name);
+        this->updateRecentList();
+    }
+}
+
+void MainWindow::openRecentFile()
+{
+    QString name = dynamic_cast<QAction*>(sender())->text();
+    openFile(name);
+}
+
+void MainWindow::openFile(const QString& fileName)
+{
     if (fileName.isEmpty())
     {
         return;
@@ -192,7 +252,7 @@ void MainWindow::showInfo()
     hlayout->addWidget(l);
     QLabel* textlabel = new QLabel(loadInfo(":/resources/info.txt"));
     textlabel->setLayout(new QHBoxLayout);
-    textlabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    textlabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     textlabel->setFrameShape(QFrame::NoFrame);
     textlabel->setWordWrap(true);
     hlayout->addWidget(textlabel);
@@ -230,6 +290,11 @@ void MainWindow::specifyGridStep()
 
 void MainWindow::resetData(const Points& points)
 {
+    if (points.empty())
+    {
+        return;
+    }
+
     m_points_info.setPoints(points);
     // By default, step equals 1/20 from minimum side of points rectangle.
     m_grid_step = qMax(m_points_info.getHDiff(),
@@ -265,11 +330,8 @@ void MainWindow::savePicture()
 void MainWindow::closeEvent(QCloseEvent *pEvent)
 {
     pEvent->accept();
-    // ignore()
-    //
-    QSettings settings("stu003", "example-10");
+    QSettings settings(QCoreApplication::organizationName(), "GraphViewer");
     settings.setValue("geometry", saveGeometry());
-    settings.setValue("recentFiles", m_listRecentFiles);
-    settings.setValue(
-    "showFileTools", m_pActionViewFile->isChecked());
+    settings.setValue("points", QVariant::fromValue(m_points_info.getPoints()));
+    settings.setValue("recent", m_recent_files);
 }

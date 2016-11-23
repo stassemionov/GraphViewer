@@ -1,10 +1,12 @@
 #ifndef POINTS_H
 #define POINTS_H
 
+#include <QMetaType>
 #include <QList>
 #include <QPointF>
 
 typedef QList<QPointF> Points;
+Q_DECLARE_METATYPE(QList<QPointF>);
 
 struct PointsInfo
 {
