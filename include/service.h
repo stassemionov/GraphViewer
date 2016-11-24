@@ -10,4 +10,7 @@ QString convertToString(const Points& points);
 
 QString loadInfo(const QString &filepath);
 
+// Makes right precision coord of real coord by scale applying.
+double getCoordWithPrecision(double coord, double scale);
+
 #endif // SERVICE_H

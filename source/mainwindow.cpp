@@ -13,13 +13,15 @@
 #include <QStatusBar>
 #include <QSettings>
 
+#include <QDebug>
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
     qRegisterMetaTypeStreamOperators<QList<QPointF> >("QList<QPointF>");
 
     this->setWindowIcon(QIcon(":/resources/icon.png"));
-    this->setMinimumSize(300, 300);
+    this->setMinimumSize(400, 400);
 
     QSettings settings(QCoreApplication::organizationName(), "GraphViewer");
     if (settings.contains("geometry"))
@@ -46,9 +48,14 @@ MainWindow::MainWindow(QWidget *parent) :
                          QKeySequence(Qt::CTRL + Qt::Key_O));
     m_recent_files_menu = menu_file->addMenu(
                 QString::fromLocal8Bit("Недавние..."));
-    menu_file->addAction(QString::fromLocal8Bit("Сохранить..."),
-                         this, SLOT(savePicture()),
+    menu_file->addSeparator();
+    menu_file->addAction(QString::fromLocal8Bit("Сохранить данные..."),
+                         this, SLOT(savePoints()),
                          QKeySequence(Qt::CTRL + Qt::Key_S));
+    menu_file->addAction(QString::fromLocal8Bit("Сохранить график..."),
+                         this, SLOT(savePicture()),
+                         QKeySequence(Qt::CTRL + Qt::Key_P));
+    menu_file->addSeparator();
     menu_file->addAction(QString::fromLocal8Bit("Выход"),
                          this, SLOT(close()),
                          QKeySequence(Qt::CTRL + Qt::Key_Q));
@@ -58,6 +65,7 @@ MainWindow::MainWindow(QWidget *parent) :
     menu_edit->addAction(QString::fromLocal8Bit("Шаг сетки..."),
                          this, SLOT(specifyGridStep()),
                          QKeySequence(Qt::CTRL + Qt::Key_G));
+    menu_edit->addSeparator();
     menu_edit->addAction(QString::fromLocal8Bit("Очистить график"),
                          this, SLOT(clearData()));
     menu_info->addAction(QString::fromLocal8Bit("О программе"),
@@ -83,6 +91,8 @@ MainWindow::MainWindow(QWidget *parent) :
     this->updateRecentList();
 
     m_viewer = new Viewer(&m_points_info, &m_grid_step);
+    connect(m_viewer, SIGNAL(onPointInserted(const QPointF&)),
+            this, SLOT(pointInsertion(const QPointF&)));
 
     QFrame* frame = new QFrame;
     frame->setLayout(new QVBoxLayout);
@@ -96,14 +106,6 @@ MainWindow::MainWindow(QWidget *parent) :
                         QString::fromLocal8Bit(": Приветствие!"));
     m_text_edit->setFont(menuBar()->font());
     frame->layout()->addWidget(m_text_edit);
-
-    m_context_menu = new QMenu(this);
-    QAction* add_point_action = new QAction(
-                QString::fromLocal8Bit("Установить точку"),
-                m_context_menu);
-    m_context_menu->addAction(add_point_action);
-    connect(add_point_action, SIGNAL(triggered()),
-            this,             SLOT(insertPoint()));
 
     this->statusBar()->hide();
 
@@ -164,7 +166,9 @@ void MainWindow::updateGraph()
 
 void MainWindow::openNewFile()
 {
-    QString name = QFileDialog::getOpenFileName(this);
+    QString name = QFileDialog::getOpenFileName(this,
+                QString::fromLocal8Bit("Открыть файл"),
+                QString(), QString("Text (*.txt)"));
     openFile(name);
     if (!m_recent_files.contains(name))
     {
@@ -216,13 +220,6 @@ void MainWindow::openFile(const QString& fileName)
                 arg(m_points_info.getStoredCount()));
 
     this->updateGraph();
-}
-
-void MainWindow::insertPoint()
-{
-    QWidget* n = new QWidget;
-    n->setGeometry(500, 500, 500, 500);
-    n->show();
 }
 
 void MainWindow::editInputData()
@@ -336,10 +333,14 @@ void MainWindow::savePicture()
     }
     else
     {
+        QFileDialog dial;
+        const QString dir = dial.directory().path();
+
         QString fileName = QFileDialog::getSaveFileName(
                     this,
-                    QString::fromLocal8Bit("Сохранить как"),
-                    QString(), QString("Images (*.png *.jpg)"));
+                    QString::fromLocal8Bit("Сохранить график"),
+                    dir + QString("/file.jpg"),
+                    QString("Images (*.png *.jpg)"));
         if (fileName.isEmpty())
         {
             return;
@@ -350,6 +351,58 @@ void MainWindow::savePicture()
                     arg(QTime::currentTime().toString()).
                     arg(fileName));
     }
+}
+
+void MainWindow::savePoints()
+{
+    if (m_points_info.getStoredCount() == 0)
+    {
+        m_text_edit->append(
+            QString::fromLocal8Bit("%1: Данные не заданы!").
+                    arg(QTime::currentTime().toString()));
+    }
+    else
+    {
+        QString fileName = QFileDialog::getSaveFileName(
+                    this,
+                    QString::fromLocal8Bit("Сохранить данные"),
+                    QString(), QString("Text (*.txt)"));
+        if (fileName.isEmpty())
+        {
+            return;
+        }
+
+        QFile file(fileName);
+        //if (file.exists())
+        //{
+        //    m_text_edit->append(
+        //        QString::fromLocal8Bit("%1: Файл уже существует: %2").
+        //                arg(QTime::currentTime().toString()).
+        //                arg(fileName));
+        //    return;
+        //}
+        file.open(QIODevice::WriteOnly);
+        QString data_string(convertToString(m_points_info.getPoints()));
+        QTextStream stream(&file);
+        stream << data_string;
+        file.close();
+
+        m_text_edit->append(
+            QString::fromLocal8Bit("%1: Данные сохранены по адресу: %2").
+                    arg(QTime::currentTime().toString()).
+                    arg(fileName));
+    }
+}
+
+void MainWindow::pointInsertion(const QPointF& point)
+{
+    m_text_edit->append(
+        QString::fromLocal8Bit("%1: Точка добавлена: [%2,%3]").
+                arg(QTime::currentTime().toString()).
+                arg(point.x()).
+                arg(point.y()));
+
+    this->updateGraph();
 }
 
 void MainWindow::clearRecentList()
@@ -371,9 +424,4 @@ void MainWindow::closeEvent(QCloseEvent *pEvent)
     settings.setValue("geometry", saveGeometry());
     settings.setValue("points", QVariant::fromValue(m_points_info.getPoints()));
     settings.setValue("recent", m_recent_files);
-}
-
-void MainWindow::contextMenuEvent(QContextMenuEvent* event)
-{
-    m_context_menu->exec(event->globalPos());
 }

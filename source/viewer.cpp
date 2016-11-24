@@ -1,16 +1,26 @@
 #include "viewer.h"
+#include "service.h"
 
 #include <QPainter>
 #include <QApplication>
 #include <QDebug>
 
-Viewer::Viewer(const PointsInfo *points_info, const double *step, QWidget *parent)
+Viewer::Viewer(PointsInfo *points_info, const double *step, QWidget *parent)
     : QWidget(parent),
       m_pixmap(new QPixmap(this->size())),
       m_points_info(points_info),
       m_grid_step(step)
 {
     this->setMouseTracking(true);
+
+    // Context menu creation.
+    m_context_menu = new QMenu(this);
+    QAction* add_point_action = new QAction(
+                QString::fromLocal8Bit("Установить точку"),
+                m_context_menu);
+    m_context_menu->addAction(add_point_action);
+    connect(add_point_action, SIGNAL(triggered()),
+            this,             SLOT(insertPoint()));
 }
 
 Viewer::~Viewer()
@@ -18,10 +28,32 @@ Viewer::~Viewer()
     delete m_pixmap;
 }
 
-void Viewer::resetPoints(const PointsInfo& points_info)
+void Viewer::resetPoints(PointsInfo& points_info)
 {
     m_points_info = &points_info;
     repaint();
+}
+
+void Viewer::insertPoint()
+{
+    const int x = m_insert_pos.x();
+    const int y = this->height() - m_insert_pos.y() - 1;
+
+    double rx = m_points_info->getLeftBound() +
+                (x - m_indent) / m_scale;
+    double ry = m_points_info->getLowerBound() +
+                (y - m_indent) / m_scale;
+
+    // Measure of real space on one point of screen.
+    // This value defines accuracy of point specifing.
+    double screen_scale = 1.0 / m_scale;
+    // Values with optimal precision.
+    double res_x = getCoordWithPrecision(rx, screen_scale);
+    double res_y = getCoordWithPrecision(ry, screen_scale);
+    m_points_info->addPoint(res_x, res_y);
+
+    this->repaint();
+    emit onPointInserted(m_points_info->getPoints().back());
 }
 
 const QPixmap* Viewer::getPixmap()
@@ -44,7 +76,7 @@ void Viewer::formPixmap()
     const int h = this->height();
     const int min_size = qMin(w, h);
     // Indent from bounds of widget.
-    const int dx = 35;
+    const int dx = m_indent;
     // Sizes of zone for points drawing.
     const int w_work = w - 2 * dx;
     const int h_work = h - 2 * dx;
@@ -56,21 +88,21 @@ void Viewer::formPixmap()
     const bool is_height_max = min_size == h;
     const double pre_scale = is_height_max ? h_work / y_scatter :
                                              w_work / x_scatter;
-    double scale = pre_scale;
+    m_scale = pre_scale;
     // If another side can't fit its data with chosen scale,
     // then scale picture with another side.
     if (min_size == h)
     {
         if (pre_scale * x_scatter > w_work)
         {
-            scale = w_work / x_scatter;
+            m_scale = w_work / x_scatter;
         }
     }
     else
     {
         if (pre_scale * y_scatter > h_work)
         {
-            scale = h_work / y_scatter;
+            m_scale = h_work / y_scatter;
         }
     }
 
@@ -79,32 +111,32 @@ void Viewer::formPixmap()
     painter.begin(m_pixmap);
     painter.setPen(QPen(Qt::gray, 0.5));
     // Scatters of points for whole area of drawing.
-    const qreal x_scatter_full = w / scale;
-    const qreal y_scatter_full = h / scale;
+    const qreal x_scatter_full = w / m_scale;
+    const qreal y_scatter_full = h / m_scale;
     // Coordinates for grid drawing.
-    const double dx_out_of_scale = dx / scale;
+    const double dx_out_of_scale = dx / m_scale;
     double i = y_scatter_full - dx_out_of_scale;
     double j = dx_out_of_scale;
     while (i >= 0 )
     {
-        painter.drawLine(0, i * scale, w, i * scale);
+        painter.drawLine(0, i * m_scale, w - 1, i * m_scale);
         i -= *m_grid_step;
     }
     i = y_scatter_full - dx_out_of_scale + *m_grid_step;
     while (i <= y_scatter_full)
     {
-        painter.drawLine(0, i * scale, w, i * scale);
+        painter.drawLine(0, i * m_scale, w - 1, i * m_scale);
         i += *m_grid_step;
     }
     while (j < x_scatter_full)
     {
-        painter.drawLine(j * scale, 0, j * scale, h);
+        painter.drawLine(j * m_scale, 0, j * m_scale, h - 1);
         j += *m_grid_step;
     }
     j = dx_out_of_scale - *m_grid_step;
     while (j >= 0)
     {
-        painter.drawLine(j * scale, 0, j * scale, h);
+        painter.drawLine(j * m_scale, 0, j * m_scale, h - 1);
         j -= *m_grid_step;
     }
 
@@ -123,9 +155,9 @@ void Viewer::formPixmap()
     for (Points::const_iterator it = points.begin();
          it != points.end(); ++it)
     {
-        qreal x = dx + (it->x() - lb)  * scale;
-        qreal y = dx + (it->y() - lwb) * scale;
-        QPointF point(x, h - y);
+        qreal x = dx + (it->x() - lb)  * m_scale;
+        qreal y = dx + (it->y() - lwb) * m_scale;
+        QPointF point(x, h - y - 1);
 
         painter.drawEllipse(point, 6, 6);
         painter.setBrush(brush_y);
@@ -139,8 +171,8 @@ void Viewer::formPixmap()
     }
 
     // *** Bounds values drawing. *** //
-    const int ub_coord = y_scatter * scale;
-    const int rb_coord = x_scatter * scale;
+    const int ub_coord = y_scatter * m_scale;
+    const int rb_coord = x_scatter * m_scale;
 
     QString str_minX = "Min X = " + QString::number(lb);
     QString str_maxX = "Max X = " + QString::number(m_points_info->getRightBound());
@@ -150,11 +182,18 @@ void Viewer::formPixmap()
     painter.setPen(QPen(Qt::darkRed, 2));
     painter.setFont(QFont("Times New Roman", 12));
     QFontMetrics metrics2(painter.font());
-    painter.drawText(dx,                                       h - 3, str_minX);
-    painter.drawText(dx + rb_coord - metrics2.width(str_maxX), h - 3, str_maxX);
+    const int str_minX_w = metrics2.width(str_minX);
+    const int str_maxX_w = metrics2.width(str_maxX);
+    const int str_minY_w = metrics2.width(str_minY);
+    const int str_maxY_w = metrics2.width(str_maxY);
+
+    painter.drawText(dx, h - 3, str_minX);
+    painter.drawText(dx + qMax(str_minX_w + 10, rb_coord - str_maxX_w),
+                     h - 3, str_maxX);
     painter.rotate(90);
-    painter.drawText(h - (metrics2.width(str_minY) + dx),      -3,    str_minY);
-    painter.drawText(h - (dx + ub_coord),                      -3,    str_maxY);
+    painter.drawText(h - (str_minY_w + dx), -3, str_minY);
+    painter.drawText(h - (dx + qMax(str_minY_w + str_maxY_w + 10, ub_coord)),
+                     -3, str_maxY);
     painter.rotate(-90);
 
     // *** Axis drawing. *** //
@@ -182,22 +221,30 @@ void Viewer::resizeEvent(QResizeEvent *pEvent)
 
 void Viewer::enterEvent(QEvent* event)
 {
-    if (event->type() == QEvent::Enter)
-    {
-        event->accept();
-        QApplication::setOverrideCursor(Qt::PointingHandCursor);
-     //   qDebug() << pEvent->x() << pEvent->y();
-    }
-    QWidget::enterEvent(event);
+    event->accept();
+    QApplication::setOverrideCursor(Qt::PointingHandCursor);
 }
 
 void Viewer::leaveEvent(QEvent* event)
 {
-    if (event->type() == QEvent::Leave)
+    event->accept();
+    QApplication::restoreOverrideCursor();
+}
+
+void Viewer::contextMenuEvent(QContextMenuEvent* event)
+{
+    if (m_points_info->getStoredCount() >= 2)
     {
         event->accept();
-   //     qDebug() << "Leave";
-        QApplication::restoreOverrideCursor();
+        m_context_menu->exec(event->globalPos());
     }
-    QWidget::leaveEvent(event);
+}
+
+void Viewer::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::RightButton)
+    {
+        event->accept();
+        m_insert_pos = event->pos();
+    }
 }

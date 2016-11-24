@@ -70,3 +70,28 @@ QString loadInfo(const QString& filepath)
 
     return result;
 }
+
+double getCoordWithPrecision(double coord, double scale)
+{
+    // Now, cumpute power of ten, that approximates scale value.
+    if (scale < 1)
+    {
+        double ten_in_power = 1;
+        while (scale <= 1)
+        {
+            scale *= 10;
+            ten_in_power *= 10;
+        }
+        return floor(coord * ten_in_power) / ten_in_power;
+    }
+    else
+    {
+        double ten_in_power = 0.1;
+        while (scale >= 1)
+        {
+            scale /= 10;
+            ten_in_power *= 10;
+        }
+        return floor(coord / ten_in_power) * ten_in_power;
+    }
+}
