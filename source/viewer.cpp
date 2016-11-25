@@ -5,13 +5,12 @@
 #include <QApplication>
 #include <QDebug>
 
-Viewer::Viewer(PointsInfo *points_info, const double *step, QWidget *parent)
-    : QWidget(parent),
-      m_pixmap(new QPixmap(this->size())),
-      m_points_info(points_info),
-      m_grid_step(step)
+Viewer::Viewer(QWidget *parent)
+    : QWidget(parent)
 {
     this->setMouseTracking(true);
+
+    m_pixmap = new QPixmap(this->size());
 
     // Context menu creation.
     m_context_menu = new QMenu(this);
@@ -26,34 +25,41 @@ Viewer::Viewer(PointsInfo *points_info, const double *step, QWidget *parent)
 Viewer::~Viewer()
 {
     delete m_pixmap;
+    delete m_context_menu;
 }
 
-void Viewer::resetPoints(PointsInfo& points_info)
+void Viewer::resetPoints(const Points& points)
 {
-    m_points_info = &points_info;
-    repaint();
+    if (points.empty())
+    {
+        return;
+    }
+
+    m_points_info.setPoints(points);
+    // By default, step equals 1/20 from minimum side of points rectangle.
+    m_grid_step = qMax(m_points_info.getHDiff(),
+                       m_points_info.getVDiff()) / 20;
+
+    this->repaint();
+    emit graphUpdated();
 }
 
 void Viewer::insertPoint()
 {
+    // Screen coords of pointed place.
     const int x = m_insert_pos.x();
     const int y = this->height() - m_insert_pos.y() - 1;
-
-    double rx = m_points_info->getLeftBound() +
+    // Real coords of points, but with not optimal precision.
+    double rx = m_points_info.getLeftBound() +
                 (x - m_indent) / m_scale;
-    double ry = m_points_info->getLowerBound() +
+    double ry = m_points_info.getLowerBound() +
                 (y - m_indent) / m_scale;
-
-    // Measure of real space on one point of screen.
-    // This value defines accuracy of point specifing.
-    double screen_scale = 1.0 / m_scale;
-    // Values with optimal precision.
-    double res_x = getCoordWithPrecision(rx, screen_scale);
-    double res_y = getCoordWithPrecision(ry, screen_scale);
-    m_points_info->addPoint(res_x, res_y);
-
+    // Addition of points with optimal precision.
+    m_points_info.addPoint(getValueWithPrecision(rx, m_precision),
+                           getValueWithPrecision(ry, m_precision));
     this->repaint();
-    emit onPointInserted(m_points_info->getPoints().back());
+
+    emit pointInserted(m_points_info.getPoints().back());
 }
 
 const QPixmap* Viewer::getPixmap()
@@ -61,55 +67,60 @@ const QPixmap* Viewer::getPixmap()
     return m_pixmap;
 }
 
+//void Viewer::addPoint(const QPointF& point)
+//{
+//    m_points_info.addPoint(point);
+//}
+
+void Viewer::clearPoints()
+{
+    m_points_info.clear();
+    m_grid_step = -1;
+    m_scale = -1;
+
+    this->repaint();
+    emit graphUpdated();
+}
+
+const Points& Viewer::getPoints()
+{
+    return m_points_info.getPoints();
+}
+
+void Viewer::resetGridStep(double step)
+{
+    m_grid_step = step;
+
+    this->repaint();
+    emit graphUpdated();
+}
+
+double Viewer::getGridStep()
+{
+    return m_grid_step;
+}
+
 void Viewer::formPixmap()
 {
     m_pixmap->fill(Qt::white);
-    if (m_points_info->getStoredCount() < 2)
+    if (m_points_info.getStoredCount() < 2)
     {
         return;
     }
 
-    // *** Choosing of scale for drawing *** //
-
     // Sizes of widget for drawing.
     const int w = this->width();
     const int h = this->height();
-    const int min_size = qMin(w, h);
     // Indent from bounds of widget.
     const int dx = m_indent;
-    // Sizes of zone for points drawing.
-    const int w_work = w - 2 * dx;
-    const int h_work = h - 2 * dx;
-    // Values of points scatter along axis.
-    const qreal x_scatter = m_points_info->getHDiff();
-    const qreal y_scatter = m_points_info->getVDiff();
-    // Scale of picture - count of pixels by unit of space.
-    // First, try to scale with minimum side of screen.
-    const bool is_height_max = min_size == h;
-    const double pre_scale = is_height_max ? h_work / y_scatter :
-                                             w_work / x_scatter;
-    m_scale = pre_scale;
-    // If another side can't fit its data with chosen scale,
-    // then scale picture with another side.
-    if (min_size == h)
-    {
-        if (pre_scale * x_scatter > w_work)
-        {
-            m_scale = w_work / x_scatter;
-        }
-    }
-    else
-    {
-        if (pre_scale * y_scatter > h_work)
-        {
-            m_scale = h_work / y_scatter;
-        }
-    }
 
     // *** Grid drawing. *** //
     QPainter painter;
     painter.begin(m_pixmap);
     painter.setPen(QPen(Qt::gray, 0.5));
+    // Values of points scatter along axis.
+    const qreal x_scatter = m_points_info.getHDiff();
+    const qreal y_scatter = m_points_info.getVDiff();
     // Scatters of points for whole area of drawing.
     const qreal x_scatter_full = w / m_scale;
     const qreal y_scatter_full = h / m_scale;
@@ -120,24 +131,24 @@ void Viewer::formPixmap()
     while (i >= 0 )
     {
         painter.drawLine(0, i * m_scale, w - 1, i * m_scale);
-        i -= *m_grid_step;
+        i -= m_grid_step;
     }
-    i = y_scatter_full - dx_out_of_scale + *m_grid_step;
+    i = y_scatter_full - dx_out_of_scale + m_grid_step;
     while (i <= y_scatter_full)
     {
         painter.drawLine(0, i * m_scale, w - 1, i * m_scale);
-        i += *m_grid_step;
+        i += m_grid_step;
     }
     while (j < x_scatter_full)
     {
         painter.drawLine(j * m_scale, 0, j * m_scale, h - 1);
-        j += *m_grid_step;
+        j += m_grid_step;
     }
-    j = dx_out_of_scale - *m_grid_step;
+    j = dx_out_of_scale - m_grid_step;
     while (j >= 0)
     {
         painter.drawLine(j * m_scale, 0, j * m_scale, h - 1);
-        j -= *m_grid_step;
+        j -= m_grid_step;
     }
 
     // *** Points drawing. *** //
@@ -149,9 +160,9 @@ void Viewer::formPixmap()
     QFontMetrics metrics(painter.font());
     const int y_shift = 6 + metrics.height() / 3;
 
-    const Points& points = m_points_info->getPoints();
-    const qreal lb = m_points_info->getLeftBound();
-    const qreal lwb = m_points_info->getLowerBound();
+    const Points& points = m_points_info.getPoints();
+    const qreal lb = m_points_info.getLeftBound();
+    const qreal lwb = m_points_info.getLowerBound();
     for (Points::const_iterator it = points.begin();
          it != points.end(); ++it)
     {
@@ -175,9 +186,9 @@ void Viewer::formPixmap()
     const int rb_coord = x_scatter * m_scale;
 
     QString str_minX = "Min X = " + QString::number(lb);
-    QString str_maxX = "Max X = " + QString::number(m_points_info->getRightBound());
+    QString str_maxX = "Max X = " + QString::number(m_points_info.getRightBound());
     QString str_minY = "Min Y = " + QString::number(lwb);
-    QString str_maxY = "Max Y = " + QString::number(m_points_info->getUpperBound());
+    QString str_maxY = "Max Y = " + QString::number(m_points_info.getUpperBound());
 
     painter.setPen(QPen(Qt::darkRed, 2));
     painter.setFont(QFont("Times New Roman", 12));
@@ -204,8 +215,51 @@ void Viewer::formPixmap()
     painter.end();
 }
 
+void Viewer::updateScale()
+{
+    if (m_points_info.getStoredCount() < 2)
+    {
+        return;
+    }
+
+    const int w = this->width();
+    const int h = this->height();
+    // Indent from bounds of widget.
+    const int dx = m_indent;
+    // Sizes of zone for points drawing.
+    const int w_work = w - 2 * dx;
+    const int h_work = h - 2 * dx;
+    // Values of points scatter along axis.
+    const qreal x_scatter = m_points_info.getHDiff();
+    const qreal y_scatter = m_points_info.getVDiff();
+    // Scale of picture - count of pixels by unit of space.
+    // First, try to scale with minimum side of screen.
+    const bool is_height_max = qMin(w, h) == h;
+    const double pre_scale = is_height_max ? h_work / y_scatter :
+                                             w_work / x_scatter;
+    m_scale = pre_scale;
+    // If another side can't fit its data with chosen scale,
+    // then scale picture with another side.
+    if (is_height_max)
+    {
+        if (pre_scale * x_scatter > w_work)
+        {
+            m_scale = w_work / x_scatter;
+        }
+    }
+    else
+    {
+        if (pre_scale * y_scatter > h_work)
+        {
+            m_scale = h_work / y_scatter;
+        }
+    }
+    m_precision = getPrecision(1.0 / m_scale);
+}
+
 void Viewer::paintEvent(QPaintEvent *pEvent)
 {
+    this->updateScale();
     this->formPixmap();
 
     QPainter p;
@@ -223,17 +277,19 @@ void Viewer::enterEvent(QEvent* event)
 {
     event->accept();
     QApplication::setOverrideCursor(Qt::PointingHandCursor);
+    emit mouseEnterSignal();
 }
 
 void Viewer::leaveEvent(QEvent* event)
 {
     event->accept();
     QApplication::restoreOverrideCursor();
+    emit mouseLeaveSignal();
 }
 
 void Viewer::contextMenuEvent(QContextMenuEvent* event)
 {
-    if (m_points_info->getStoredCount() >= 2)
+    if (m_points_info.getStoredCount() >= 2)
     {
         event->accept();
         m_context_menu->exec(event->globalPos());
@@ -246,5 +302,24 @@ void Viewer::mousePressEvent(QMouseEvent *event)
     {
         event->accept();
         m_insert_pos = event->pos();
+    }
+}
+
+void Viewer::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_points_info.getStoredCount() > 1)
+    {
+        event->accept();
+
+        int x = event->pos().x();
+        int y = this->height() - event->pos().y() - 1;
+        // Real coords of points, but with not optimal precision.
+        double rx = m_points_info.getLeftBound() +
+                    (x - m_indent) / m_scale;
+        double ry = m_points_info.getLowerBound() +
+                    (y - m_indent) / m_scale;
+
+        emit mouseMoveSignal(getValueWithPrecision(rx, m_precision),
+                             getValueWithPrecision(ry, m_precision));
     }
 }

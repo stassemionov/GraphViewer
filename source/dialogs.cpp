@@ -7,7 +7,7 @@
 
 // *** StepSpecifingDialog class implementation *** //
 
-StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *parent)
+StepSpecifingDialog::StepSpecifingDialog(double step_init, QWidget *parent)
     : QDialog(parent), m_current_step(step_init)
 {
     this->setWindowTitle(QString::fromLocal8Bit("Установка шага сетки"));
@@ -17,7 +17,7 @@ StepSpecifingDialog::StepSpecifingDialog(const double *step_init, QWidget *paren
     this->setLayout(layout);
     m_spin_box = new QDoubleSpinBox;
     m_spin_box->setMinimum(0.0);
-    m_spin_box->setValue(*m_current_step);
+    m_spin_box->setValue(m_current_step);
     m_spin_box->setDecimals(3);
     m_spin_box->setSingleStep(0.001);
     layout->addWidget(m_spin_box);

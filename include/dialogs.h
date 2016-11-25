@@ -14,7 +14,7 @@ class StepSpecifingDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit StepSpecifingDialog(const double* step_init, QWidget *parent = nullptr);
+    explicit StepSpecifingDialog(double step_init, QWidget *parent = nullptr);
 
     ~StepSpecifingDialog();
 
@@ -23,7 +23,7 @@ public:
 private:
     QDoubleSpinBox* m_spin_box = nullptr;
     QPushButton* m_button = nullptr;
-    const double* m_current_step = nullptr;
+    const double m_current_step;
 };
 
 class DataEditionDialog : public QDialog

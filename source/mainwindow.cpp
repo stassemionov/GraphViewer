@@ -12,6 +12,7 @@
 #include <QLayout>
 #include <QStatusBar>
 #include <QSettings>
+#include <QSplitter>
 
 #include <QDebug>
 
@@ -20,8 +21,38 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     qRegisterMetaTypeStreamOperators<QList<QPointF> >("QList<QPointF>");
 
+    // *** Widget interface *** //
+
     this->setWindowIcon(QIcon(":/resources/icon.png"));
-    this->setMinimumSize(400, 400);
+
+    m_text_edit = new QTextEdit;
+    m_text_edit->setReadOnly(true);
+    m_text_edit->setFont(menuBar()->font());
+    m_text_edit->append(QTime::currentTime().toString() +
+                        QString::fromLocal8Bit(": Приветствие!"));
+
+    m_viewer = new Viewer;
+    m_viewer->setMinimumSize(300, 300);
+    connect(m_viewer, SIGNAL(pointInserted(const QPointF&)),     this, SLOT(onPointInserted(const QPointF&)));
+    connect(m_viewer, SIGNAL(graphUpdated()),                    this, SLOT(onGraphUpdated()));
+    connect(m_viewer, SIGNAL(mouseEnterSignal()),                this, SLOT(showMouseCoords()));
+    connect(m_viewer, SIGNAL(mouseLeaveSignal()),                this, SLOT(hideMouseCoords()));
+    connect(m_viewer, SIGNAL(mouseMoveSignal(double, double)), this, SLOT(updateMouseCoords(double, double)));
+
+    QFrame* frame = new QFrame;
+    frame->setLayout(new QVBoxLayout);
+    this->setCentralWidget(frame);
+
+    QSplitter* splitter = new QSplitter(Qt::Vertical);
+    splitter->addWidget(m_viewer);
+    splitter->addWidget(m_text_edit);
+    splitter->setCollapsible(0, false);
+    splitter->setSizes({this->height() - 80, 80});
+    frame->layout()->addWidget(splitter);
+
+    m_pos_label = new QLabel;
+    this->statusBar()->addPermanentWidget(m_pos_label);
+    // *** Widget inner mechanics *** //
 
     QSettings settings(QCoreApplication::organizationName(), "GraphViewer");
     if (settings.contains("geometry"))
@@ -35,7 +66,12 @@ MainWindow::MainWindow(QWidget *parent) :
                           QApplication::desktop()->width()  / 2,
                           QApplication::desktop()->height() / 2);
     }
-    this->resetData(settings.value("points").value<Points>());
+    m_viewer->resetPoints(settings.value("points").value<Points>());
+    double step = settings.value("step").toDouble();
+    if (step > 0)
+    {
+        m_viewer->resetGridStep(step);
+    }
     m_recent_files = settings.value("recent").toStringList();
 
     QMenu* menu_file = menuBar()->addMenu(QString::fromLocal8Bit("Файл"));
@@ -70,9 +106,6 @@ MainWindow::MainWindow(QWidget *parent) :
                          this, SLOT(clearData()));
     menu_info->addAction(QString::fromLocal8Bit("О программе"),
                          this, SLOT(showInfo()));
-    //menu_tool->addAction(QString::fromLocal8Bit("Указать новую точку"),
-    //                     this, SLOT(updatePointingMode()),
-    //                     QKeySequence(Qt::CTRL + Qt::Key_N));
 
     m_recent_files_menu->actions().reserve(m_max_recent_count + 2);
     for (int i = 0; i < m_max_recent_count; ++i)
@@ -89,32 +122,12 @@ MainWindow::MainWindow(QWidget *parent) :
     m_recent_files_menu->addAction(clear_action);
 
     this->updateRecentList();
-
-    m_viewer = new Viewer(&m_points_info, &m_grid_step);
-    connect(m_viewer, SIGNAL(onPointInserted(const QPointF&)),
-            this, SLOT(pointInsertion(const QPointF&)));
-
-    QFrame* frame = new QFrame;
-    frame->setLayout(new QVBoxLayout);
-    frame->layout()->addWidget(m_viewer);
-    this->setCentralWidget(frame);
-
-    m_text_edit = new QTextEdit;
-    m_text_edit->setMaximumHeight(80);
-    m_text_edit->setReadOnly(true);
-    m_text_edit->append(QTime::currentTime().toString() +
-                        QString::fromLocal8Bit(": Приветствие!"));
-    m_text_edit->setFont(menuBar()->font());
-    frame->layout()->addWidget(m_text_edit);
-
-    this->statusBar()->hide();
-
-    this->updateGraph();
 }
 
 MainWindow::~MainWindow()
 {
     delete m_viewer;
+    delete m_pos_label;
     delete m_text_edit;
     delete m_recent_files_menu;
 }
@@ -152,16 +165,14 @@ void MainWindow::updateRecentList()
     actions.back()->setVisible(!m_recent_files.empty());
 }
 
-void MainWindow::updateGraph()
+void MainWindow::onGraphUpdated()
 {
-    if (m_points_info.getStoredCount() == 1)
+    if (m_viewer->getPoints().size() < 2)
     {
         m_text_edit->append(
             QTime::currentTime().toString() +
             QString::fromLocal8Bit(": Вывод отменен: недостаточно точек для масштабирования"));
     }
-
-    m_viewer->repaint();
 }
 
 void MainWindow::openNewFile()
@@ -213,18 +224,17 @@ void MainWindow::openFile(const QString& fileName)
 
     QApplication::restoreOverrideCursor();
 
-    this->resetData(data);
     m_text_edit->append(
-        QString::fromLocal8Bit("%1: Данные загружены (%2 точек)").
+        QString::fromLocal8Bit("%1: Данные успешно загружены (%2 точек)").
                 arg(QTime::currentTime().toString()).
-                arg(m_points_info.getStoredCount()));
+                arg(m_viewer->getPoints().size()));
 
-    this->updateGraph();
+    m_viewer->resetPoints(data);
 }
 
 void MainWindow::editInputData()
 {
-    DataEditionDialog dialog(m_points_info.getPoints());
+    DataEditionDialog dialog(m_viewer->getPoints());
     if (dialog.exec() == QDialog::Accepted)
     {
         Points data;
@@ -237,15 +247,14 @@ void MainWindow::editInputData()
                 QString::fromLocal8Bit(": Данные введены в ошибочном формате!"));
             return;
         }
-
-        this->resetData(data);
-
-        m_text_edit->append(
-            QString::fromLocal8Bit("%1: Данные загружены (%2 точек)").
-                    arg(QTime::currentTime().toString()).
-                    arg(m_points_info.getStoredCount()));
-
-        this->updateGraph();
+        else
+        {
+            m_text_edit->append(
+                QString::fromLocal8Bit("%1: Данные успешно приняты (%2 точек)").
+                        arg(QTime::currentTime().toString()).
+                        arg(m_viewer->getPoints().size()));
+            m_viewer->resetPoints(data);
+        }
     }
 }
 
@@ -287,45 +296,31 @@ void MainWindow::showInfo()
 
 void MainWindow::specifyGridStep()
 {
-    if (m_points_info.getStoredCount() == 0)
+    if (m_viewer->getPoints().size() < 2)
     {
         m_text_edit->append(
             QTime::currentTime().toString() +
-            QString::fromLocal8Bit(": Чтобы указать шаг сетки, введите данные!"));
+            QString::fromLocal8Bit(": Чтобы указать шаг сетки, введите более одной точки!"));
         return;
     }
 
-    StepSpecifingDialog dialog(&m_grid_step);
+    StepSpecifingDialog dialog(m_viewer->getGridStep());
     if (dialog.exec() == QDialog::Accepted)
     {
-        if (dialog.getValue() != m_grid_step)
+        if (dialog.getValue() != m_viewer->getGridStep())
         {
-            m_grid_step = dialog.getValue();
+            m_viewer->resetGridStep(dialog.getValue());
             m_text_edit->append(
                 QString::fromLocal8Bit("%1: Шаг сетки установлен (%2)").
                         arg(QTime::currentTime().toString()).
-                        arg(m_grid_step));
-            this->updateGraph();
+                        arg(m_viewer->getGridStep()));
         }
     }
 }
 
-void MainWindow::resetData(const Points& points)
-{
-    if (points.empty())
-    {
-        return;
-    }
-
-    m_points_info.setPoints(points);
-    // By default, step equals 1/20 from minimum side of points rectangle.
-    m_grid_step = qMax(m_points_info.getHDiff(),
-                       m_points_info.getVDiff()) / 20;
-}
-
 void MainWindow::savePicture()
 {
-    if (m_points_info.getStoredCount() < 2)
+    if (m_viewer->getPoints().size() < 2)
     {
         m_text_edit->append(
             QString::fromLocal8Bit("%1: Изображение отсутствует").
@@ -333,9 +328,7 @@ void MainWindow::savePicture()
     }
     else
     {
-        QFileDialog dial;
-        const QString dir = dial.directory().path();
-
+        const QString dir = QDir::currentPath();
         QString fileName = QFileDialog::getSaveFileName(
                     this,
                     QString::fromLocal8Bit("Сохранить график"),
@@ -355,7 +348,7 @@ void MainWindow::savePicture()
 
 void MainWindow::savePoints()
 {
-    if (m_points_info.getStoredCount() == 0)
+    if (m_viewer->getPoints().empty())
     {
         m_text_edit->append(
             QString::fromLocal8Bit("%1: Данные не заданы!").
@@ -382,7 +375,7 @@ void MainWindow::savePoints()
         //    return;
         //}
         file.open(QIODevice::WriteOnly);
-        QString data_string(convertToString(m_points_info.getPoints()));
+        QString data_string(convertToString(m_viewer->getPoints()));
         QTextStream stream(&file);
         stream << data_string;
         file.close();
@@ -394,15 +387,28 @@ void MainWindow::savePoints()
     }
 }
 
-void MainWindow::pointInsertion(const QPointF& point)
+void MainWindow::onPointInserted(const QPointF& point)
 {
     m_text_edit->append(
         QString::fromLocal8Bit("%1: Точка добавлена: [%2,%3]").
                 arg(QTime::currentTime().toString()).
                 arg(point.x()).
                 arg(point.y()));
+}
 
-    this->updateGraph();
+void MainWindow::showMouseCoords()
+{
+    m_pos_label->setVisible(true);
+}
+
+void MainWindow::hideMouseCoords()
+{
+    m_pos_label->setVisible(false);
+}
+
+void MainWindow::updateMouseCoords(double x, double y)
+{
+    m_pos_label->setText(QString("X = %1; Y = %2").arg(x).arg(y));
 }
 
 void MainWindow::clearRecentList()
@@ -413,8 +419,7 @@ void MainWindow::clearRecentList()
 
 void MainWindow::clearData()
 {
-    m_points_info.clear();
-    this->updateGraph();
+    m_viewer->clearPoints();
 }
 
 void MainWindow::closeEvent(QCloseEvent *pEvent)
@@ -422,6 +427,7 @@ void MainWindow::closeEvent(QCloseEvent *pEvent)
     pEvent->accept();
     QSettings settings(QCoreApplication::organizationName(), "GraphViewer");
     settings.setValue("geometry", saveGeometry());
-    settings.setValue("points", QVariant::fromValue(m_points_info.getPoints()));
+    settings.setValue("points", QVariant::fromValue(m_viewer->getPoints()));
     settings.setValue("recent", m_recent_files);
+    settings.setValue("step", m_viewer->getGridStep());
 }
